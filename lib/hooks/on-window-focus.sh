@@ -19,4 +19,5 @@ while IFS=' ' read -r pane_id state; do
     esac
 done < <(tmux list-panes -t "$win_id" -F '#{pane_id} #{@amux_state}' 2>/dev/null)
 
+bash "$AMUX_DIR/lib/status.sh" &
 tmux refresh-client -S 2>/dev/null

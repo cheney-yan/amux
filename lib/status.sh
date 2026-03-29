@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# lib/status.sh — AMux status bar segment + window name manager
+# lib/status.sh — AMux window name manager
 #
-# Runs every status-interval seconds via #(...) in tmux status-right.
-# Side effect: renames windows to prepend [C] when Claude is detected.
+# Triggered every status-interval seconds via tmux status-right #(...).
+# Scans all panes for Claude processes and updates window name prefixes.
+# Does not output anything to the status bar — window names carry all state.
 
 [ -z "$TMUX" ] && exit 0
 
 # ── Claude detection ──────────────────────────────────────────────────────────
-# Check if a shell PID has a child process running Claude
 pane_has_claude() {
     local shell_pid="$1"
     for child_pid in $(pgrep -P "$shell_pid" 2>/dev/null); do
@@ -18,9 +18,8 @@ pane_has_claude() {
     return 1
 }
 
-# ── Scan all windows and update names ─────────────────────────────────────────
+# ── Determine window prefix based on pane states ──────────────────────────────
 _amux_prefix() {
-    # Return [C], [C⚙], [C⏰], or [C❗] based on worst state across Claude panes
     local win_id="$1"
     local worst="idle"
     local rank=0
@@ -43,10 +42,10 @@ _amux_prefix() {
     esac
 }
 
+# ── Scan all windows and update names ─────────────────────────────────────────
 while IFS=' ' read -r win_id win_name; do
     has_claude=0
 
-    # Check each pane in this window for Claude process
     while IFS=' ' read -r shell_pid; do
         if pane_has_claude "$shell_pid"; then
             has_claude=1
@@ -57,7 +56,6 @@ while IFS=' ' read -r win_id win_name; do
     prev=$(tmux show-option -t "$win_id" -v @amux_has_claude 2>/dev/null)
 
     if [ "$has_claude" = "1" ]; then
-        # Determine correct prefix: [C] or [C*]
         prefix=$(_amux_prefix "$win_id")
 
         # Strip any existing [C...] prefix to get base name
@@ -70,43 +68,13 @@ while IFS=' ' read -r win_id win_name; do
         tmux set-option -t "$win_id" @amux_has_claude "1" 2>/dev/null
         tmux set-option -t "$win_id" @amux_base_name "$base" 2>/dev/null
 
-        # Only rename if the prefix changed
         desired="${prefix} ${base}"
         [ "$win_name" != "$desired" ] && tmux rename-window -t "$win_id" "$desired" 2>/dev/null
 
     elif [ "$has_claude" = "0" ] && [ "$prev" = "1" ]; then
-        # Claude exited — restore original name
         base=$(tmux show-option -t "$win_id" -v @amux_base_name 2>/dev/null)
         tmux set-option -t "$win_id" @amux_has_claude "0" 2>/dev/null
         tmux rename-window -t "$win_id" "${base:-$win_name}" 2>/dev/null
     fi
 
 done < <(tmux list-windows -a -F '#{window_id} #{window_name}' 2>/dev/null)
-
-# ── Render status bar alerts ──────────────────────────────────────────────────
-# Use awk for aggregation — compatible with bash 3.x, BSD awk, and GNU awk
-# Prefix each output line with window index so we can sort numerically after
-output=$(tmux list-panes -a -F '#{window_index}|#{@amux_role}|#{@amux_state}' 2>/dev/null | \
-awk -F'|' '
-$2 == "claude" {
-    win = $1; state = $3
-    r = (state == "error"   ? 4 : \
-         state == "waiting" ? 3 : \
-         state == "done"    ? 2 : \
-         state == "tool"    ? 1 : 0)
-    if (!(win in best) || r > rank[win]) { best[win] = state; rank[win] = r }
-}
-END {
-    for (win in best) {
-        state = best[win]
-        if      (state == "error")   seg = "#[fg=colour196,bold][W" win ":ERR]#[default]"
-        else if (state == "waiting") seg = "#[fg=colour226,bold][W" win ":INPUT]#[default]"
-        else if (state == "done")    seg = "#[fg=colour46,bold][W"  win ":DONE]#[default]"
-        else if (state == "tool")    seg = "#[fg=colour39][W"       win ":🔧]#[default]"
-        else                         seg = "#[fg=colour39][W"       win ":◆]#[default]"
-        printf "%s %s\n", win, seg
-    }
-}
-' | sort -n | cut -d' ' -f2- | tr '\n' ' ')
-
-printf '%s' "${output% }"

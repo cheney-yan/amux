@@ -23,4 +23,5 @@ if [ "$active_win" != "$win_id" ]; then
     printf '\a' | tmux load-buffer - 2>/dev/null || true
 fi
 
+bash "$AMUX_DIR/lib/status.sh" &
 tmux refresh-client -S 2>/dev/null

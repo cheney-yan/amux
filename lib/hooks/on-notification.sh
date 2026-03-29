@@ -31,4 +31,5 @@ tmux list-clients -F '#{client_name}' 2>/dev/null | while read -r client; do
     tmux display-message -c "$client" -d 8000 "$msg" 2>/dev/null
 done
 
+bash "$AMUX_DIR/lib/status.sh" &
 tmux refresh-client -S 2>/dev/null

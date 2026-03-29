@@ -17,4 +17,5 @@ tmux set-option -p -t "$TMUX_PANE" @amux_state "tool" 2>/dev/null
 
 win_id=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null) || exit 0
 tmux set-option -t "$win_id" @amux_win_alert "0" 2>/dev/null
+bash "$AMUX_DIR/lib/status.sh" &
 tmux refresh-client -S 2>/dev/null
