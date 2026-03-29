@@ -4,6 +4,8 @@
 
 > 🚧 **当前支持：Claude Code**。AMux 的设计目标是支持所有主流 AI coding agent，更多 agent 的集成正在规划中。
 
+![AMux screenshot](screenshot.png)
+
 ---
 
 ## 中文
