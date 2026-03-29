@@ -12,7 +12,7 @@
 
 用 Claude Code 工作时，常常需要同时跑多个 session——一个在写代码，一个在跑测试，一个在处理另一个任务。问题是：**你不知道哪个 session 完成了，哪个在等你操作，哪个出错了**。你只能不停地切换窗口去检查。
 
-AMux 解决这个问题。它让每个 Claude session 能够主动通知 tmux，把状态实时显示在状态栏上。你坐在任意一个窗口里，一眼就能看到所有 Claude session 的情况。
+AMux 解决这个问题。它通过修改 tmux 的 window 名字来实时反映每个 session 的状态，无论你在哪个窗口，一眼就能看到所有 Claude session 的情况。
 
 ### 功能
 
@@ -24,6 +24,7 @@ AMux 解决这个问题。它让每个 Claude session 能够主动通知 tmux，
   - `[C❗]` — 需要你操作（权限确认、输入等）
 - **弹出通知**：当你在其他窗口工作时，完成或需要交互会短暂弹出提示
 - **读过即清除**：切换到该窗口，`✅` 和 `❗` 自动消失
+- **无损添加**：不修改你现有的 status bar 样式，只追加必要配置
 - **纯 terminal**：不依赖 macOS / Windows 特有机制，SSH 远程环境同样适用
 
 ### 安装
@@ -62,37 +63,48 @@ if-shell '[ -n "$AMUX_DIR" ]' 'source-file "$AMUX_DIR/tmux-addon.conf"'
 
 安装完成后，**正常启动 tmux 即可**，无需做任何额外操作。
 
-当你在某个 pane 里运行 `claude`，AMux 会自动检测到，并更新那个窗口的名字和状态。
+当你在某个 pane 里运行 `claude`，AMux 会自动检测到，并更新那个窗口的名字和状态前缀。
 
 ### 要求
 
 - tmux 3.0+
-- bash 4.0+（macOS 自带的 bash 是 3.x，建议用 zsh 或 `brew install bash`）
-- python3（用于安装时合并 Claude Code settings，安装后不再需要）
-- `jq`（可选，用于解析 Claude 通知消息，没有也能工作）
+- bash 3.2+（macOS 默认版本即可）
+- python3（仅安装时需要，用于合并 Claude Code settings）
+- `jq`（可选，用于在通知中显示 Claude 的消息内容）
+
+### 工作原理
+
+**进程检测**（`lib/status.sh`，由 Claude hooks 和 window 切换事件触发）：
+扫描所有 pane 的子进程，在命令行里查找 `claude`。发现后，将 window 名字加上对应前缀。
+
+**Claude Code hooks**（`lib/hooks/`，配置在 `~/.claude/settings.json`）：
+Claude Code 在运行过程中触发 `PreToolUse`、`Stop`、`Notification` 三类 hook。AMux 的 hook 脚本将状态写入 tmux pane option（`@amux_state`），驱动 window 名字的前缀变化。
+
+每个 hook 显式指定 `$TMUX_PANE`，多个 Claude session 并存时互不干扰。
 
 ---
 
 ## English
 
+> 🚧 **Currently supported: Claude Code**. AMux is designed to support all major AI coding agents — more integrations are planned.
+
 ### Why does this exist?
 
 When working with AI coding agents, you often run multiple sessions simultaneously — one writing code, one running tests, one handling another task. The problem: **you don't know which session finished, which one needs your input, and which one hit an error**. You end up constantly switching windows to check.
 
-AMux solves this. It lets each agent session actively notify tmux, displaying live status in the status bar. Wherever you are, you can see the state of every agent session at a glance.
-
-> **Agent support**: Claude Code is currently supported. Support for additional agents (Gemini CLI, Codex, etc.) is planned — contributions welcome.
+AMux solves this by reflecting each session's state directly in the tmux window name. Wherever you are, you can see every agent session's status at a glance.
 
 ### Features
 
-- **Automatic window naming**: Windows running Claude get a prefix automatically
+- **Automatic window naming**: Windows running Claude get a status prefix automatically
 - **Status prefixes**:
   - `[C]` — Claude idle
   - `[C🔧]` — Tool call in progress
   - `[C✅]` — Done, waiting for your next instruction
   - `[C❗]` — Needs your attention (permission prompt, input required, etc.)
-- **Pop-up notifications**: Brief status bar alerts when you're in another window
+- **Pop-up notifications**: Brief alerts when a session finishes or needs input while you're elsewhere
 - **Read-to-dismiss**: Switch to a window and `✅` / `❗` clear automatically
+- **Non-invasive**: Does not modify your existing status bar styles
 - **Terminal-only**: No macOS / Windows dependencies — works over SSH
 
 ### Installation
@@ -136,19 +148,17 @@ When you run `claude` in any pane, AMux detects it automatically and updates tha
 ### Requirements
 
 - tmux 3.0+
-- bash 4.0+ (macOS ships with bash 3.x — zsh or `brew install bash` recommended)
+- bash 3.2+ (macOS default is fine)
 - python3 (only needed during install for merging Claude Code settings)
-- `jq` (optional — used to parse Claude notification messages)
+- `jq` (optional — shows Claude's notification message text in pop-up alerts)
 
 ### How it works
 
-AMux has two parts:
+**Process detection** (`lib/status.sh`, triggered by Claude hooks and window-switch events):
+Scans pane PIDs and their child processes for `claude` in the command line. When found, renames the window with the appropriate prefix.
 
-**1. Process detection** (`lib/status.sh`, runs every 2 seconds via tmux `status-interval`):
-Scans all pane PIDs and their child processes for `claude` in the command line. When found, renames the window with the appropriate prefix.
-
-**2. Claude Code hooks** (`lib/hooks/`, configured in `~/.claude/settings.json`):
-Claude Code fires `PreToolUse`, `Stop`, and `Notification` hooks during its lifecycle. AMux hooks write state into tmux pane options (`@amux_state`), which are read by the status scanner to update the window prefix.
+**Claude Code hooks** (`lib/hooks/`, configured in `~/.claude/settings.json`):
+Claude Code fires `PreToolUse`, `Stop`, and `Notification` hooks during its lifecycle. AMux hooks write state into tmux pane options (`@amux_state`), driving the window name prefix changes.
 
 Each hook explicitly targets `$TMUX_PANE` so multiple Claude sessions never interfere with each other.
 
