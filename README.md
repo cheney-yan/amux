@@ -40,6 +40,12 @@ git clone https://github.com/cheney-yan/amux.git ~/.amux && bash ~/.amux/install
 3. 在 `~/.tmux.conf` 末尾追加 AMux source（不覆盖已有配置）
 4. 将 Claude Code hooks 合并进 `~/.claude/settings.json`（不覆盖已有配置）
 
+### 更新
+
+```bash
+git -C ~/.amux pull
+```
+
 ### 手动配置
 
 在 shell profile 里加：
@@ -102,6 +108,12 @@ The installer is fully automatic:
 2. Detects your current shell and writes `AMUX_DIR` to the appropriate profile (`~/.zshrc`, `~/.bashrc`, etc.)
 3. Appends an AMux source line to `~/.tmux.conf` (non-destructive)
 4. Merges Claude Code hooks into `~/.claude/settings.json` (non-destructive)
+
+### Upgrading
+
+```bash
+git -C ~/.amux pull
+```
 
 ### Manual setup (without the installer)
 
