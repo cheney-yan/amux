@@ -1,6 +1,8 @@
 # AMux — Agent Mux
 
-**在 tmux 里管理多个 Claude Code session 的工具。**
+**在 tmux 里管理多个 AI Agent session 的工具。**
+
+> 🚧 **当前支持：Claude Code**。AMux 的设计目标是支持所有主流 AI coding agent，更多 agent 的集成正在规划中。
 
 ---
 
@@ -69,9 +71,11 @@ if-shell '[ -n "$AMUX_DIR" ]' 'source-file "$AMUX_DIR/tmux-addon.conf"'
 
 ### Why does this exist?
 
-When working with Claude Code, you often run multiple sessions simultaneously — one writing code, one running tests, one handling another task. The problem: **you don't know which session finished, which one needs your input, and which one hit an error**. You end up constantly switching windows to check.
+When working with AI coding agents, you often run multiple sessions simultaneously — one writing code, one running tests, one handling another task. The problem: **you don't know which session finished, which one needs your input, and which one hit an error**. You end up constantly switching windows to check.
 
-AMux solves this. It lets each Claude session actively notify tmux, displaying live status in the status bar. Wherever you are, you can see the state of every Claude session at a glance.
+AMux solves this. It lets each agent session actively notify tmux, displaying live status in the status bar. Wherever you are, you can see the state of every agent session at a glance.
+
+> **Agent support**: Claude Code is currently supported. Support for additional agents (Gemini CLI, Codex, etc.) is planned — contributions welcome.
 
 ### Features
 
