@@ -2,54 +2,51 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project: AMux — tmux Wrapper for Claude Session Management
+## Project: AMux — Agent Mux
 
-AMux is a tmux wrapper whose primary purpose is acting as a **Claude Session Manager** inside a terminal environment. It lets Claude instances running in various tmux sessions send structured notifications back to tmux so the user can monitor session state at a glance.
-
-## Core Goals
-
-1. **Status bar visibility** — the tmux status bar must show at a glance:
-   - Which windows contain a AMux (Claude) session
-   - Which sessions need human attention: errors, interactive prompts, or completed jobs
-
-2. **Visual pane highlighting** — clear visual distinction between:
-   - The currently active pane (within a AMux-managed session)
-   - Panes running Claude vs. plain shell panes
-
-3. **Notification system** — Claude processes inside sessions can signal state changes (e.g., "waiting for input", "job done", "error") that bubble up to the status bar without requiring the user to switch windows.
+AMux is a minimal tmux add-on for managing multiple AI agent sessions. It auto-detects Claude Code processes in tmux panes and updates the status bar and window names to reflect each session's state.
 
 ## Design Constraints
 
-- **Terminal-only, Linux-compatible**: All implementation must use standard POSIX/terminal primitives — tmux, shell scripts, escape codes, named pipes, or similar. No macOS-specific (`osascript`, `terminal-notifier`) or Windows-specific mechanisms.
-- **No external GUI dependencies**: Everything must work over SSH in a headless Linux environment.
-- **tmux-native**: Prefer tmux built-ins (`set-option`, `display-message`, `run-shell`, hooks like `after-new-window`) over external tooling where possible.
+- **Add-on only**: AMux adds one `source-file` line to `~/.tmux.conf`. It does not replace or wrap tmux.
+- **Terminal-only, Linux-compatible**: No macOS/Windows-specific mechanisms. Works over SSH.
+- **bash 3.x compatible**: macOS ships bash 3.2. No `declare -A`, no bash 4+ features. Use `awk` for aggregation.
+- **BSD awk compatible**: No `gensub`, no `asorti`. Use `sort` externally for ordering.
 
-## Architecture (Planned)
+## File Structure
 
 ```
 amux/
-├── amux.sh          # Main entry point / wrapper around tmux
+├── install.sh          # Installer: shell profile, ~/.tmux.conf, ~/.claude/settings.json
+├── tmux-addon.conf     # Sourced from ~/.tmux.conf — all tmux UI config lives here
 ├── lib/
-│   ├── notify.sh    # API for Claude sessions to emit state notifications
-│   ├── status.sh    # Builds the tmux status-left/status-right strings
-│   └── hooks.sh     # tmux hook registrations (session-created, etc.)
-├── tmux.conf        # AMux tmux config (sourced alongside user config)
-└── CLAUDE.md
+│   ├── status.sh       # Runs every 2s via tmux status-right #(...); scans panes + renders alerts
+│   └── hooks/
+│       ├── on-stop.sh          # Claude Code Stop hook → state=done
+│       ├── on-notification.sh  # Claude Code Notification hook → state=waiting
+│       ├── on-pre-tool.sh      # Claude Code PreToolUse hook → state=tool
+│       └── on-window-focus.sh  # tmux after-select-window hook → clears alerts on visit
+└── README.md
 ```
 
-### Notification Flow
+## How It Works
 
-Claude session → `notify.sh <session> <state>` → writes to a shared state store (e.g., a temp file or tmux variable per session) → `status.sh` reads state store and renders status bar segments → tmux `status-interval` refreshes the bar.
+**Detection** (`lib/status.sh`, every 2s):
+- `tmux list-panes` → get shell PIDs → `pgrep -P <pid>` → `ps -o command=` → grep for `claude`
+- When found: rename window to `[C] <name>`, set `@amux_has_claude` window option
 
-State values: `idle`, `waiting` (needs input), `error`, `done`.
+**State machine** (via Claude Code hooks):
+- `PreToolUse` → `@amux_state=tool` → window prefix `[C🔧]`
+- `Stop` → `@amux_state=done` → window prefix `[C✅]`, brief pop-up notification
+- `Notification` → `@amux_state=waiting` → window prefix `[C❗]`, persistent pop-up
+- User switches to window → `on-window-focus.sh` resets `done`/`waiting` → back to `[C]`
 
-### Status Bar Segments
+**Isolation**: every hook targets `$TMUX_PANE` explicitly so multiple Claude sessions never interfere.
 
-Each window with a AMux session gets a colored indicator; windows needing attention are highlighted (e.g., bold/color change). The active pane border style changes when inside a AMux-managed session.
+## Key tmux Concepts
 
-## Key tmux Concepts Used
-
-- `set -g status-right` / `status-left` with `#(...)` shell interpolation for dynamic content
-- `set-hook` for reacting to window/session lifecycle events
-- `select-pane -P` / `set -g pane-active-border-style` for pane visual highlighting
-- `tmux set-environment` / `tmux show-environment` for per-session state storage
+- `set-option -p -t "$TMUX_PANE"` — pane-scoped option, per-session isolated
+- `set-option -t "$win_id" @amux_*` — window-scoped option
+- `pane-border-format` with `#{@amux_state}` — live pane title
+- `#(lib/status.sh)` in `status-right` — shell interpolation, runs every `status-interval`
+- `set-hook -g after-select-window` — fires when user switches windows
