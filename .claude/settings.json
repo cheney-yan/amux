@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "$AMUX_DIR/lib/hooks/on-stop.sh" }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "$AMUX_DIR/lib/hooks/on-notification.sh" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "$AMUX_DIR/lib/hooks/on-pre-tool.sh" }
+        ]
+      }
+    ]
+  }
+}
