@@ -15,7 +15,7 @@ echo "  AMUX_DIR: $AMUX_DIR"
 
 # ── 1. Permissions ────────────────────────────────────────────────────────────
 step "1. Scripts"
-chmod +x "$AMUX_DIR/amux.sh" "$AMUX_DIR/test.sh" "$AMUX_DIR/install.sh"
+chmod +x "$AMUX_DIR/install.sh"
 chmod +x "$AMUX_DIR"/lib/hooks/*.sh "$AMUX_DIR/lib/status.sh"
 ok "All scripts are executable"
 
