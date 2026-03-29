@@ -1,20 +1,13 @@
 #!/usr/bin/env bash
-# install.sh — Install AMux into the user's environment
-#
-# Usage:
-#   bash install.sh          # interactive (shows what to add manually)
-#   bash install.sh --yes    # auto-write to shell profile (like nvm --install)
+# install.sh — Install AMux into the user's environment (fully automatic)
 
 set -e
 AMUX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AUTO_WRITE=0
-[[ "$*" == *"--yes"* ]] && AUTO_WRITE=1
 
 ok()   { printf '\033[32m  ✓ %s\033[0m\n' "$*"; }
 skip() { printf '\033[33m  · %s\033[0m\n' "$*"; }
 err()  { printf '\033[31m  ✗ %s\033[0m\n' "$*"; }
 step() { printf '\n\033[1m%s\033[0m\n' "$*"; }
-dim()  { printf '\033[2m  %s\033[0m\n' "$*"; }
 
 echo ""
 echo "  AMux — Agent Mux installer"
@@ -29,59 +22,60 @@ ok "All scripts are executable"
 # ── 2. Shell profile ──────────────────────────────────────────────────────────
 step "2. Shell profile"
 
-# Detect shell and pick profile file
+# Detect current shell profile
 case "${SHELL##*/}" in
-    zsh)  PROFILE="$HOME/.zshrc" ;;
-    bash) PROFILE="$HOME/.bash_profile" ; [ -f "$HOME/.bashrc" ] && PROFILE="$HOME/.bashrc" ;;
-    *)    PROFILE="" ;;
+    zsh)
+        PROFILE="$HOME/.zshrc"
+        ;;
+    bash)
+        if [ -f "$HOME/.bashrc" ]; then
+            PROFILE="$HOME/.bashrc"
+        else
+            PROFILE="$HOME/.bash_profile"
+        fi
+        ;;
+    fish)
+        PROFILE="$HOME/.config/fish/config.fish"
+        ;;
+    *)
+        PROFILE="$HOME/.profile"
+        ;;
 esac
 
 EXPORT_LINE="export AMUX_DIR=\"$AMUX_DIR\""
 
-if [ -n "$PROFILE" ] && grep -q "AMUX_DIR" "$PROFILE" 2>/dev/null; then
+if grep -q "AMUX_DIR" "$PROFILE" 2>/dev/null; then
     skip "AMUX_DIR already in $PROFILE"
-elif [ "$AUTO_WRITE" = "1" ] && [ -n "$PROFILE" ]; then
-    printf '\n# AMux\n%s\n' "$EXPORT_LINE" >> "$PROFILE"
-    ok "Added to $PROFILE"
 else
-    echo ""
-    echo "  Add the following line to your shell profile (~/.zshrc, ~/.bashrc, etc.):"
-    echo ""
-    printf '    \033[36m%s\033[0m\n' "$EXPORT_LINE"
-    echo ""
-    dim "(run with --yes to do this automatically)"
+    printf '\n# AMux\n%s\n' "$EXPORT_LINE" >> "$PROFILE"
+    ok "Added AMUX_DIR to $PROFILE"
 fi
 
 # ── 3. tmux config ────────────────────────────────────────────────────────────
-step "3. tmux config"
+step "3. tmux config (~/.tmux.conf)"
 TMUX_CONF="$HOME/.tmux.conf"
-SOURCE_LINE="source-file \"$AMUX_DIR/tmux-addon.conf\""
-
 [ -f "$TMUX_CONF" ] || touch "$TMUX_CONF"
 
 if grep -q "amux" "$TMUX_CONF" 2>/dev/null; then
     skip "~/.tmux.conf (already configured)"
 else
-    printf '\n# AMux\nif-shell '"'"'[ -n "$AMUX_DIR" ]'"'"' %s\n' "\"$SOURCE_LINE\"" >> "$TMUX_CONF"
+    printf '\n# AMux\nif-shell '"'"'[ -n "$AMUX_DIR" ]'"'"' '"'"'source-file "%s/tmux-addon.conf"'"'"'\n' "$AMUX_DIR" >> "$TMUX_CONF"
     ok "Added AMux source to ~/.tmux.conf"
 fi
 
 # ── 4. Claude Code hooks ──────────────────────────────────────────────────────
-step "4. Claude Code hooks"
+step "4. Claude Code hooks (~/.claude/settings.json)"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 mkdir -p "$HOME/.claude"
 
 if ! command -v python3 &>/dev/null; then
-    err "python3 not found — skipping Claude hooks merge"
-    echo "     Manually add hooks from: $AMUX_DIR/.claude/settings.json"
+    err "python3 not found — skipping (add hooks manually from $AMUX_DIR/.claude/settings.json)"
 else
     result=$(python3 - "$CLAUDE_SETTINGS" "$AMUX_DIR" <<'PYEOF'
 import json, sys, os
 
-settings_file = sys.argv[1]
-amux_dir = sys.argv[2]
+settings_file, amux_dir = sys.argv[1], sys.argv[2]
 
-# Load existing settings
 config = {}
 if os.path.exists(settings_file) and os.path.getsize(settings_file) > 0:
     try:
@@ -93,15 +87,14 @@ if os.path.exists(settings_file) and os.path.getsize(settings_file) > 0:
 config.setdefault("hooks", {})
 
 amux_hooks = {
-    "Stop":        f"{amux_dir}/lib/hooks/on-stop.sh",
+    "Stop":         f"{amux_dir}/lib/hooks/on-stop.sh",
     "Notification": f"{amux_dir}/lib/hooks/on-notification.sh",
-    "PreToolUse":  f"{amux_dir}/lib/hooks/on-pre-tool.sh",
+    "PreToolUse":   f"{amux_dir}/lib/hooks/on-pre-tool.sh",
 }
 
 changed = False
 for hook_type, cmd in amux_hooks.items():
     config["hooks"].setdefault(hook_type, [])
-    # Check if this command is already present anywhere in this hook type
     already = any(
         any(h.get("command", "") == cmd for h in entry.get("hooks", []))
         for entry in config["hooks"][hook_type]
@@ -120,8 +113,7 @@ if changed:
 else:
     print("present")
 PYEOF
-    )
-
+)
     case "$result" in
         merged)  ok "Merged AMux hooks into ~/.claude/settings.json" ;;
         present) skip "~/.claude/settings.json (hooks already present)" ;;
@@ -134,7 +126,8 @@ echo ""
 echo "  ─────────────────────────────────────"
 ok "AMux installed"
 echo ""
-echo "  Next steps:"
-echo "    1. source ~/.zshrc          (or open a new terminal)"
-echo "    2. tmux source ~/.tmux.conf (or start a new tmux session)"
+echo "  Activate now:"
+printf '    source %s\n' "$PROFILE"
+echo "  Then reload tmux (or start a new session):"
+echo "    tmux source ~/.tmux.conf"
 echo ""

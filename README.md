@@ -26,34 +26,19 @@ AMux 解决这个问题。它让每个 Claude session 能够主动通知 tmux，
 
 ### 安装
 
-**一键安装（需要 git）：**
+**一键安装：**
 
 ```bash
-git clone https://github.com/cheney-yan/amux.git ~/.amux
-bash ~/.amux/install.sh
+git clone https://github.com/cheney-yan/amux.git ~/.amux && bash ~/.amux/install.sh
 ```
 
-**或者直接用 curl：**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/cheney-yan/amux/main/install.sh -o /tmp/amux-install.sh
-# 查看脚本内容确认安全后再执行：
-bash /tmp/amux-install.sh
-```
-
-安装脚本会做三件事：
+安装脚本全自动完成以下四步：
 1. 让所有脚本可执行
-2. 打印需要加入 shell profile 的那一行（手动添加，或加 `--yes` 自动写入）
-3. 将 Claude Code hooks 合并进 `~/.claude/settings.json`（不覆盖已有配置）
-4. 在 `~/.tmux.conf` 末尾追加 AMux source（不覆盖已有配置）
+2. 检测当前 shell，自动写入对应的 profile（`~/.zshrc` / `~/.bashrc` 等）
+3. 在 `~/.tmux.conf` 末尾追加 AMux source（不覆盖已有配置）
+4. 将 Claude Code hooks 合并进 `~/.claude/settings.json`（不覆盖已有配置）
 
-**`--yes` 模式（自动写入 shell profile）：**
-
-```bash
-bash ~/.amux/install.sh --yes
-```
-
-### 手动配置（不用安装脚本）
+### 手动配置
 
 在 shell profile 里加：
 ```bash
@@ -102,32 +87,17 @@ AMux solves this. It lets each Claude session actively notify tmux, displaying l
 
 ### Installation
 
-**One-liner (requires git):**
+**One-liner:**
 
 ```bash
-git clone https://github.com/cheney-yan/amux.git ~/.amux
-bash ~/.amux/install.sh
+git clone https://github.com/cheney-yan/amux.git ~/.amux && bash ~/.amux/install.sh
 ```
 
-**Or with curl:**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/cheney-yan/amux/main/install.sh -o /tmp/amux-install.sh
-# Inspect the script before running:
-bash /tmp/amux-install.sh
-```
-
-The installer will:
-1. Make all scripts executable
-2. Print the line you need to add to your shell profile (or use `--yes` to write automatically)
-3. Non-destructively merge Claude Code hooks into `~/.claude/settings.json`
-4. Append an AMux source line to `~/.tmux.conf`
-
-**Auto-write mode:**
-
-```bash
-bash ~/.amux/install.sh --yes
-```
+The installer is fully automatic:
+1. Makes all scripts executable
+2. Detects your current shell and writes `AMUX_DIR` to the appropriate profile (`~/.zshrc`, `~/.bashrc`, etc.)
+3. Appends an AMux source line to `~/.tmux.conf` (non-destructive)
+4. Merges Claude Code hooks into `~/.claude/settings.json` (non-destructive)
 
 ### Manual setup (without the installer)
 
