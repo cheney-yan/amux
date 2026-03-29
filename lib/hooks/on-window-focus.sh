@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Hook: after-select-window — clear alerts when user switches to a window
+# $1 = window_id, expanded by tmux at hook-fire time (reliable even with -b)
 
 [ -z "$TMUX" ] && exit 0
 
-win_id=$(tmux display-message -p '#{window_id}' 2>/dev/null) || exit 0
+win_id="${1:-}"
+[ -z "$win_id" ] && exit 0
 alert=$(tmux show-option -t "$win_id" -v @amux_win_alert 2>/dev/null)
 
 if [ "$alert" = "1" ]; then
