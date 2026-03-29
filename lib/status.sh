@@ -84,37 +84,29 @@ while IFS=' ' read -r win_id win_name; do
 done < <(tmux list-windows -a -F '#{window_id} #{window_name}' 2>/dev/null)
 
 # ── Render status bar alerts ──────────────────────────────────────────────────
-state_rank() {
-    case "$1" in
-        error)   echo 3 ;;
-        waiting) echo 2 ;;
-        done)    echo 1 ;;
-        *)       echo 0 ;;
-    esac
+# Use awk for aggregation — compatible with bash 3.x, BSD awk, and GNU awk
+# Prefix each output line with window index so we can sort numerically after
+output=$(tmux list-panes -a -F '#{window_index}|#{@amux_role}|#{@amux_state}' 2>/dev/null | \
+awk -F'|' '
+$2 == "claude" {
+    win = $1; state = $3
+    r = (state == "error"   ? 4 : \
+         state == "waiting" ? 3 : \
+         state == "done"    ? 2 : \
+         state == "tool"    ? 1 : 0)
+    if (!(win in best) || r > rank[win]) { best[win] = state; rank[win] = r }
 }
-
-declare -A win_worst
-declare -A win_claude
-
-while IFS='|' read -r win_idx role state; do
-    [ "$role" = "claude" ] || continue
-    win_claude[$win_idx]=1
-    rank=$(state_rank "$state")
-    current_rank=$(state_rank "${win_worst[$win_idx]:-idle}")
-    if (( rank > current_rank )); then
-        win_worst[$win_idx]="$state"
-    fi
-done < <(tmux list-panes -a -F '#{window_index}|#{@amux_role}|#{@amux_state}' 2>/dev/null)
-
-output=""
-for win_idx in $(echo "${!win_claude[@]}" | tr ' ' '\n' | sort -n); do
-    state="${win_worst[$win_idx]:-idle}"
-    case "$state" in
-        error)   output+="#[fg=colour196,bold][W${win_idx}:ERR]#[default] " ;;
-        waiting) output+="#[fg=colour226,bold][W${win_idx}:INPUT]#[default] " ;;
-        done)    output+="#[fg=colour46,bold][W${win_idx}:DONE]#[default] " ;;
-        idle)    output+="#[fg=colour39][W${win_idx}:◆]#[default] " ;;
-    esac
-done
+END {
+    for (win in best) {
+        state = best[win]
+        if      (state == "error")   seg = "#[fg=colour196,bold][W" win ":ERR]#[default]"
+        else if (state == "waiting") seg = "#[fg=colour226,bold][W" win ":INPUT]#[default]"
+        else if (state == "done")    seg = "#[fg=colour46,bold][W"  win ":DONE]#[default]"
+        else if (state == "tool")    seg = "#[fg=colour39][W"       win ":🔧]#[default]"
+        else                         seg = "#[fg=colour39][W"       win ":◆]#[default]"
+        printf "%s %s\n", win, seg
+    }
+}
+' | sort -n | cut -d' ' -f2- | tr '\n' ' ')
 
 printf '%s' "${output% }"
